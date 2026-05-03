@@ -14,6 +14,7 @@ Este modulo no forma parte de `infra`.
 Material de apoyo de esta fase:
 
 - [SESION-07-OBSERVABILIDAD-CON-HERRAMIENTAS.md](C:/ms1/ProyectosMS2026/observability/SESION-07-OBSERVABILIDAD-CON-HERRAMIENTAS.md)
+- [RUBRICA-EVALUACION-OBSERVABILIDAD.md](C:/ms1/ProyectosMS2026/observability/RUBRICA-EVALUACION-OBSERVABILIDAD.md)
 
 ## Ubicacion en la secuencia 2026-2
 
