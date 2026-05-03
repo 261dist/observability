@@ -19,6 +19,7 @@ La evaluacion aplica a:
 - `gateway` o punto de entrada principal
 - cada microservicio de negocio del proyecto final
 - servicios de apoyo que sean criticos para el flujo principal, si aplica
+- componentes de seguridad o autenticacion, si forman parte del flujo
 
 Cada equipo debe adaptar los nombres segun su proyecto.
 
@@ -38,6 +39,25 @@ Regla:
 Todo microservicio que forma parte del flujo principal del proyecto debe tener metricas, logs y al menos una forma de detectar falla.
 ```
 
+### Consideracion sobre Auth y Gateway
+
+Si el proyecto ya tiene autenticacion y autorizacion integradas, se espera que el equipo observe tambien el comportamiento de seguridad.
+
+Arquitectura aceptada para esta evaluacion:
+
+```text
+Cliente -> Gateway protegido -> Microservicios internos
+```
+
+En este escenario, es valido que `producto`, `catalogo` u otros microservicios internos no validen directamente el token, siempre que el equipo pueda explicar que:
+
+- la proteccion de rutas se realiza en el `gateway`
+- los microservicios internos no deberian exponerse publicamente
+- el acceso externo debe entrar por el `gateway`
+- los logs y metricas permiten ver intentos autorizados y no autorizados
+
+Si un microservicio interno queda expuesto directamente al exterior sin validacion de seguridad, el equipo debe reconocerlo como riesgo arquitectonico.
+
 ---
 
 ## Evidencia minima a presentar
@@ -50,6 +70,7 @@ Cada equipo debe mostrar durante la sustentacion:
 4. Al menos una alerta configurada y explicada.
 5. Una falla controlada y su investigacion.
 6. Explicacion clara de que problema detectaron las metricas y que causa mostraron los logs.
+7. Evidencia de acceso protegido por `gateway`, si el proyecto ya integra Auth.
 
 ---
 
@@ -112,6 +133,15 @@ Que debe explicar el alumno:
 - que servicio esta recibiendo trafico
 - que servicio esta generando errores
 - diferencia entre disponibilidad, trafico y error
+- como se observa una peticion autorizada y una no autorizada en el `gateway`
+
+Metricas utiles cuando hay Auth:
+
+```promql
+sum by (job, status) (rate(http_server_requests_seconds_count{status=~"401|403"}[1m]))
+```
+
+Esta consulta permite observar respuestas no autorizadas (`401`) o prohibidas (`403`) cuando el `gateway` protege rutas.
 
 ---
 
@@ -157,6 +187,8 @@ Que debe explicar el alumno:
 - por que ya no necesita abrir varias consolas
 - como filtra logs por servicio
 - que mensaje del log ayuda a explicar una falla
+- que log evidencia una peticion rechazada por seguridad en el `gateway`
+- que log evidencia una peticion autorizada que si llego al microservicio interno
 
 ---
 
@@ -179,6 +211,7 @@ Paneles minimos recomendados:
 | Servicios vivos | `up` | ver disponibilidad |
 | Requests por segundo | `sum by (job) (rate(http_server_requests_seconds_count[1m]))` | ver trafico |
 | Errores 5xx | `sum by (job, status) (rate(http_server_requests_seconds_count{status=~"5.."}[1m]))` | detectar fallas HTTP |
+| Respuestas 401/403 | `sum by (job, status) (rate(http_server_requests_seconds_count{status=~"401|403"}[1m]))` | ver rechazos de seguridad |
 | Memoria JVM | `sum by (job) (jvm_memory_used_bytes)` | ver consumo de memoria |
 | CPU | `avg by (job) (system_cpu_usage)` | ver consumo de CPU |
 
@@ -187,6 +220,7 @@ Que debe explicar el alumno:
 - que panel miraria primero ante un problema
 - como identifica que servicio esta fallando
 - como diferencia trafico normal de errores
+- como identifica errores de autenticacion o autorizacion
 
 ---
 
@@ -228,6 +262,24 @@ Uso:
 Detectar que el servicio responde con errores.
 ```
 
+### Rechazos de seguridad 401/403
+
+```promql
+sum by (job, status) (rate(http_server_requests_seconds_count{job="nombre-del-gateway",status=~"401|403"}[1m])) > 0
+```
+
+Uso:
+
+```text
+Detectar intentos no autorizados o prohibidos en el gateway.
+```
+
+Ejemplo si el gateway se llama `gateway-dev`:
+
+```promql
+sum by (job, status) (rate(http_server_requests_seconds_count{job="gateway-dev",status=~"401|403"}[1m])) > 0
+```
+
 ### Trafico anormalmente bajo
 
 ```promql
@@ -246,6 +298,7 @@ Que debe explicar el alumno:
 - que servicio afecta
 - que haria al recibir esa alerta
 - por que esa alerta es importante para su negocio
+- si la alerta corresponde a disponibilidad, error de negocio o seguridad
 
 ---
 
@@ -268,6 +321,8 @@ Ejemplos de fallas aceptadas:
 - provocar una respuesta HTTP 500
 - provocar un timeout entre servicios
 - enviar una peticion invalida que genere error controlado
+- llamar una ruta protegida sin token y observar `401`
+- llamar una ruta protegida con token sin permisos y observar `403`, si aplica
 
 Secuencia esperada:
 
@@ -278,6 +333,15 @@ Secuencia esperada:
 5. Mostrar logs relacionados.
 6. Explicar causa probable.
 7. Restaurar el servicio o explicar como se restauraria.
+
+Si la falla es de seguridad:
+
+1. Mostrar una peticion valida con token.
+2. Mostrar una peticion sin token o con token invalido.
+3. Mostrar el `401` o `403` en metricas.
+4. Mostrar el log del `gateway`.
+5. Explicar por que `producto`, `catalogo` u otros microservicios internos no validan directamente el token.
+6. Explicar por que esos microservicios no deben quedar expuestos fuera del `gateway`.
 
 Que debe explicar el alumno:
 
@@ -313,6 +377,9 @@ Preguntas que el docente puede hacer:
 8. Que log demuestra la causa probable de la falla?
 9. Como sabes que el problema esta en un microservicio y no en otro?
 10. Que mejorarias de tu observabilidad si tuvieras mas tiempo?
+11. Donde se valida la seguridad: en gateway, en cada microservicio o en ambos?
+12. Si `producto` o `catalogo` no validan token, por que no deberian exponerse directamente?
+13. Como observarias intentos no autorizados?
 
 ---
 
@@ -320,17 +387,24 @@ Preguntas que el docente puede hacer:
 
 Cada equipo debe completar una fila por cada microservicio del proyecto.
 
-| Microservicio | `UP` en Prometheus | Requests visibles | Errores visibles | Logs en Loki | Alerta definida | Evidencia de falla |
-|---|---|---|---|---|---|---|
-| `gateway` | si/no | si/no | si/no | si/no | si/no | si/no |
-| `servicio-1` | si/no | si/no | si/no | si/no | si/no | si/no |
-| `servicio-2` | si/no | si/no | si/no | si/no | si/no | si/no |
-| `servicio-3` | si/no | si/no | si/no | si/no | si/no | si/no |
+| Microservicio | `UP` en Prometheus | Requests visibles | Errores visibles | Logs en Loki | Alerta definida | Evidencia de falla | Seguridad observada |
+|---|---|---|---|---|---|---|---|
+| `gateway` | si/no | si/no | si/no | si/no | si/no | si/no | 401/403 o rutas protegidas |
+| `servicio-1` | si/no | si/no | si/no | si/no | si/no | si/no | interno / valida token / no aplica |
+| `servicio-2` | si/no | si/no | si/no | si/no | si/no | si/no | interno / valida token / no aplica |
+| `servicio-3` | si/no | si/no | si/no | si/no | si/no | si/no | interno / valida token / no aplica |
 
 Regla de evaluacion:
 
 ```text
 Si un microservicio participa en el flujo principal, debe aparecer en esta matriz.
+```
+
+Para seguridad:
+
+```text
+Si la seguridad esta centralizada en gateway, debe evidenciarse en gateway.
+Si un microservicio interno no valida token, debe justificarse como servicio interno no expuesto.
 ```
 
 ---
@@ -345,6 +419,7 @@ El equipo debe entregar o mostrar:
 - captura o descripcion de alertas configuradas
 - breve explicacion del caso de falla
 - matriz de revision por microservicio completada
+- evidencia de una ruta protegida por gateway, si el proyecto ya tiene Auth
 
 Formato recomendado:
 
@@ -356,7 +431,8 @@ Formato recomendado:
 5. Evidencia de logs
 6. Evidencia de alertas
 7. Falla controlada
-8. Conclusion del equipo
+8. Evidencia de seguridad en gateway, si aplica
+9. Conclusion del equipo
 ```
 
 ---
@@ -372,6 +448,8 @@ Se puede descontar puntaje si:
 - se muestran logs sin relacionarlos con una peticion o falla
 - las alertas existen pero no estan asociadas a un riesgo real
 - el equipo no puede explicar que haria ante una alerta
+- el equipo dice que la seguridad esta en gateway, pero expone microservicios internos directamente sin reconocer el riesgo
+- no hay evidencia observable de respuestas `401` o `403` cuando el proyecto ya integra Auth
 
 ---
 
@@ -385,6 +463,7 @@ Para aprobar la parte de observabilidad, el equipo debe demostrar como minimo:
 - un dashboard basico en Grafana
 - una alerta funcional
 - una falla controlada explicada con metricas y logs
+- evidencia de seguridad observada en gateway, si el proyecto ya integra Auth
 
 Nota minima aprobatoria:
 
