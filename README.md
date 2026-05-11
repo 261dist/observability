@@ -1,6 +1,6 @@
-# Observability Platform
+# observability
 
-Stack externo y compartido de observabilidad para la plataforma.
+Stack compartido de observabilidad para la plataforma.
 
 Incluye:
 
@@ -9,138 +9,15 @@ Incluye:
 - Promtail
 - Grafana
 
-Este modulo no forma parte de `infra`.
+Este modulo no levanta Kafka ni microservicios. Solo observa servicios que ya estan disponibles.
 
-Material de apoyo de esta fase:
+## Archivos
 
-- [SESION-07-OBSERVABILIDAD-CON-HERRAMIENTAS.md](C:/ms1/ProyectosMS2026/observability/SESION-07-OBSERVABILIDAD-CON-HERRAMIENTAS.md)
-- [RUBRICA-EVALUACION-OBSERVABILIDAD.md](C:/ms1/ProyectosMS2026/observability/RUBRICA-EVALUACION-OBSERVABILIDAD.md)
-
-## Ubicacion en la secuencia 2026-2
-
-Este modulo corresponde principalmente a:
-
-- `S7` Observabilidad y trazabilidad
-
-Se apoya sobre lo ya construido en:
-
-- `S1-S4` infraestructura distribuida base
-- `S6` interaccion entre servicios y resiliencia
-
-La idea pedagogica es:
-
-1. primero tener un sistema distribuido funcional
-2. luego tener interaccion real y fallos controlados
-3. finalmente observar ese comportamiento con Prometheus, Loki y Grafana
-
-Relacion entre modulos:
-
-```text
-infra -> expone gateway y logs
-services -> exponen metricas y logs
-observability -> consume metricas y logs desde infra y services
-```
-
-Importante:
-
-- `infra` no depende de `observability`
-- `observability` si depende de que `infra` y los microservicios esten levantados
-- habilitar `/actuator/prometheus` en los servicios no obliga a tener Prometheus encendido
-- en `dev`, `observability` no usa `ms-net`; usa una red propia porque los servicios corren en el host con `mvn`
-- en `prod`, `observability` si usa `ms-net` porque todo corre en Docker
-
-## Archivos del modulo
-
-- `docker-compose-dev.yml` -> observabilidad en `dev`
-- `docker-compose.yml` -> observabilidad en `prod`
-- `prometheus/prometheus-dev.yml` -> scraping de `dev` via `host.docker.internal`
-- `prometheus/prometheus.yml` -> scraping de `prod` via nombres Docker
-- `SESION-07-OBSERVABILIDAD-CON-HERRAMIENTAS.md` -> guia didactica de la sesion
-
-## Arranque en DEV
-
-Primero levanta infraestructura y microservicios en `dev`.
-
-```bash
-cd infra/config-server
-./mvnw spring-boot:run
-```
-
-En otra terminal:
-
-```bash
-cd infra/registry-server
-./mvnw spring-boot:run
-```
-
-En otra terminal:
-
-```bash
-cd infra/gateway
-./mvnw spring-boot:run
-```
-
-Luego las bases de datos de desarrollo:
-
-```bash
-cd services/catalogo
-docker compose -f docker-compose-dev.yml up -d
-
-cd ../producto
-docker compose -f docker-compose-dev.yml up -d
-```
-
-Luego las aplicaciones:
-
-```bash
-cd services/catalogo
-./mvnw spring-boot:run
-
-cd ../producto
-./mvnw spring-boot:run
-```
-
-Finalmente la observabilidad:
-
-```bash
-cd observability
-docker compose -f docker-compose-dev.yml up -d
-```
-
-En `dev`, Prometheus consulta:
-
-- `host.docker.internal:7091`
-- `host.docker.internal:8081`
-- `host.docker.internal:9091`
-
-## Arranque en PROD
-
-Primero levanta infraestructura y microservicios en `prod`.
-
-```bash
-cd infra
-docker compose up -d
-
-cd ../services/catalogo
-docker compose up -d
-
-cd ../producto
-docker compose up -d
-```
-
-Luego la observabilidad:
-
-```bash
-cd observability
-docker compose up -d
-```
-
-## Fuentes consumidas
-
-- metricas HTTP y JVM desde `/actuator/prometheus`
-- logs de `infra/gateway/logs`
-- logs de `services/catalogo/logs`
-- logs de `services/producto/logs`
+- `docker-compose-dev.yml`: observabilidad para `dev`
+- `docker-compose.yml`: observabilidad para `prod`
+- `prometheus/prometheus-dev.yml`: targets dev por `host.docker.internal`
+- `prometheus/prometheus.yml`: targets prod por nombres Docker en `ms-net`
+- `grafana/provisioning`: datasources de Grafana
 
 ## Puertos
 
@@ -150,38 +27,144 @@ docker compose up -d
 | Loki | 13100 | 23100 |
 | Grafana | 13000 | 23000 |
 
-## Validaciones minimas en DEV
+Grafana usa:
 
 ```text
-http://localhost:7071/catalogo/dev
-http://localhost:7081
-http://localhost:7091/actuator/health
-http://localhost:8081/actuator/prometheus
-http://localhost:9091/actuator/prometheus
-http://localhost:19090
-http://localhost:13000
+admin / admin
 ```
 
-## Validaciones minimas en PROD
+## Redes
+
+En `dev`, observability usa una red propia:
 
 ```text
-http://localhost:7082
-http://localhost:7092/actuator/health
-http://localhost:8082/actuator/prometheus
-http://localhost:9092/actuator/prometheus
-http://localhost:29090
-http://localhost:23000
+obs-dev-net
 ```
 
-## Nota importante
+Los servicios dev suelen correr en el host con Maven, por eso Prometheus usa `host.docker.internal`.
 
-Que `gateway`, `catalogo` y `producto` tengan habilitado `/actuator/prometheus` no significa que Prometheus deba estar encendido.
+En `prod`, observability usa la red externa:
 
-Solo significa que el endpoint queda disponible para ser consultado cuando exista un colector externo.
+```text
+ms-net
+```
+
+Esa red la crea `infra`.
+
+## Targets DEV
+
+Prometheus dev scrapea:
+
+- Gateway: `host.docker.internal:7091`
+- Producto: `host.docker.internal:9091`
+- Catalogo: `host.docker.internal:8081`
+- Kafka exporter: `host.docker.internal:41308`
+- Orden MS: `host.docker.internal:19051`
+- Pago MS: `host.docker.internal:19061`
+
+## Targets PROD
+
+Prometheus prod scrapea:
+
+- Gateway: `gateway:7091`
+- Producto: `producto:9092`
+- Catalogo: `catalogo:8082`
+- Kafka exporter: `kafka-exporter:9308`
+- Orden MS: `orden-ms:9021`
+- Pago MS: `pago-ms:9031`
+
+## Logs Centralizados
+
+Promtail lee estas carpetas y envia los logs a Loki con etiqueta `service`:
+
+- `infra/gateway/logs` -> `gateway`
+- `services/catalogo/logs` -> `catalogo`
+- `services/producto/logs` -> `producto`
+- `services/orden-ms/logs` -> `orden-ms`
+- `services/pago-ms/logs` -> `pago-ms`
+
+## Levantar DEV
+
+Puedes levantar observability antes o despues de Kafka y los microservicios. Si un target aun no existe, Prometheus lo marcara `DOWN` hasta que aparezca.
+
+```powershell
+cd C:\ms1\ProyectosMS2026\observability
+docker compose -f docker-compose-dev.yml up -d
+```
+
+Accesos:
+
+- Prometheus: `http://localhost:19090`
+- Grafana: `http://localhost:13000`
+- Loki: `http://localhost:13100`
+
+## Levantar PROD
+
+Primero debe existir `ms-net`, creada por `infra`:
+
+```powershell
+cd C:\ms1\ProyectosMS2026\infra
+docker compose up -d
+```
+
+Luego Kafka y microservicios, si quieres ver sus metricas. Finalmente:
+
+```powershell
+cd C:\ms1\ProyectosMS2026\observability
+docker compose up -d
+```
+
+Accesos:
+
+- Prometheus: `http://localhost:29090`
+- Grafana: `http://localhost:23000`
+- Loki: `http://localhost:23100`
+
+## Validaciones
+
+En Prometheus, revisar:
+
+```text
+Status -> Targets
+```
+
+Para Kafka:
+
+- dev: target `kafka-exporter-dev`
+- prod: target `kafka-exporter`
+
+Si aparece `UP`, Grafana ya puede consultar esas metricas desde Prometheus.
+
+## Logs
+
+```powershell
+# dev
+docker compose -f docker-compose-dev.yml logs -f prometheus
+docker compose -f docker-compose-dev.yml logs -f grafana
+
+# prod
+docker compose logs -f prometheus
+docker compose logs -f grafana
+```
+
+## Estado de avance
+
+- [x] Prometheus dev/prod
+- [x] Grafana dev/prod
+- [x] Loki dev/prod
+- [x] Promtail para logs centralizados
+- [x] Scrape de Gateway, catalogo y producto
+- [x] Scrape de `orden-ms` y `pago-ms`
+- [x] Scrape de Kafka Exporter
+- [x] Datasource Grafana provisionado
+- [ ] Dashboards versionados por servicio
+- [ ] Alertas formales por ambiente
+
+---
 
 ## Tag sugerido
 
 ```bash
-git tag -a vs07-obs-tools -m "Observability: Prometheus, Loki, Promtail y Grafana para dev y prod"
-git push origin vs07-obs-tools
+git tag -a vs09-kafka -m "eda con vs09-kafka"
+git push origin vs09-kafka
 ```

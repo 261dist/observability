@@ -35,3 +35,21 @@ scrape_configs:
           job: catalogo
           service: catalogo
           __path__: /var/log/ms/catalogo/*.log
+
+  - job_name: orden-ms-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: orden-ms
+          service: orden-ms
+          __path__: /var/log/ms/orden-ms/*.log
+
+  - job_name: pago-ms-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: pago-ms
+          service: pago-ms
+          __path__: /var/log/ms/pago-ms/*.log

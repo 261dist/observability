@@ -36,6 +36,8 @@ services:
       - ../infra/gateway/logs:/var/log/ms/gateway:ro
       - ../services/catalogo/logs:/var/log/ms/catalogo:ro
       - ../services/producto/logs:/var/log/ms/producto:ro
+      - ../services/orden-ms/logs:/var/log/ms/orden-ms:ro
+      - ../services/pago-ms/logs:/var/log/ms/pago-ms:ro
     depends_on:
       - loki
     networks:

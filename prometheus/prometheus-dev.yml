@@ -25,3 +25,21 @@ scrape_configs:
     static_configs:
       - targets:
           - host.docker.internal:8081
+
+  - job_name: kafka-exporter-dev
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:41308
+
+  - job_name: orden-ms-dev
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:19051
+
+  - job_name: pago-ms-dev
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:19061
